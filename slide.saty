@@ -1,3 +1,4 @@
+@require: option
 @require: class-slydifi/theme/akasaka
 @require: code-printer/code-design
 @require: code-printer/code-printer
@@ -13,6 +14,10 @@ let-block +code-block-php source =
     )(source);
   >
 
+let big-textbox ?:size-opt it =
+  let size = Option.from 32pt size-opt in
+    FigBox.textbox?:(set-font-size size) it
+
 open FigBox
 in
 
@@ -24,10 +29,12 @@ document '<
 
   +make-title(|
     title = {
-      |TODO
+      |PHPStanの力で
+      |Algebraic Data Typesを
+      |実現する
       |};
     author = {|nsfisis (いまむら)|};
-    date = {|第TODO回PHP勉強会＠東京|};
+    date = {|第160回PHP勉強会＠東京|};
   |);
 
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -36,19 +43,270 @@ document '<
     +fig-center(vconcat [
       gap 75pt;
       hconcat [
-        textbox{nsfisis (いまむら)};
+        big-textbox{nsfisis (いまむら)};
         gap 20pt;
         include-image 50pt `assets/me.jpeg`;
       ];
       gap 20pt;
-      textbox{\@ デジタルサーカス株式会社};
+      big-textbox{\@ デジタルサーカス株式会社};
+    ]);
+  >
+
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+  +frame{ADTとは}<
+    +fig-center(vconcat [
+      gap 75pt;
+      big-textbox?:(48pt){Algebraic Data Type};
+      gap 20pt;
+      big-textbox?:(48pt){代数的データ型};
+    ]);
+  >
+
+  +frame{ADTとは}<
+    +fig-center(vconcat [
+      gap 75pt;
+      big-textbox?:(48pt){すごい enum 型};
+    ]);
+  >
+
+  +frame{ADTの例}<
+    +code-block-php(`// 注: これは架空の文法です
+enum JsonValue {
+    case Null;
+    case Boolean(bool);
+    case Number(int|float);
+    case String(string);
+    case Array(array);
+    case Object(array);
+}
+`);
+  >
+
+  +frame{ADTの例(今回扱うもの)}<
+    +code-block-php(`// 注: これは架空の文法です
+enum OptionalInt {
+    case None;
+    case Some(int);
+}
+`);
+  >
+
+  +frame{実現したいもの}<
+    +code-block-php(`/** @return TODO */
+function f(): TODO {
+    return /* Some(int) か None を返す */;
+}
+
+$x = f();
+if (/* $x が Some かどうか判定する */) {
+    echo /* $x が内部に持っている int の値を「型安全に」取り出す */;
+}
+`);
+  >
+
+  +frame{どうやって実現するか？}<
+    +fig-center(vconcat [
+      gap 40pt;
+      big-textbox{Array shape 編};
+      gap 20pt;
+      big-textbox{Object shape 編};
+      gap 20pt;
+      big-textbox{Type assertion 編};
+      gap 20pt;
+      big-textbox{PHPStan 魔改造編};
+    ]);
+  >
+
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+  +frame{Array shape}<
+    +code-block-php(`$none = [
+    'has_value' => false,
+];
+$some = [
+    'has_value' => true,
+    'value' => 42,
+];`);
+  >
+
+  +frame{Array shape}<
+    +code-block-php(`/** @var array{has_value: false} $none */
+$none = [
+    'has_value' => false,
+];
+/** @var array{has_value: true, value: int} $some */
+$some = [
+    'has_value' => true,
+    'value' => 42,
+];`);
+  >
+
+  +frame{Array shape}<
+    +code-block-php(`/** @return (array{has_value: false}
+             |array{has_value: true, value: int}) */
+function f(): array { /* 略 */ }`);
+  >
+
+  +frame{Array shape}<
+    +code-block-php(`/** @return (array{has_value: false}
+             |array{has_value: true, value: int}) */
+function f(): array { /* 略 */ }
+
+$x = f();
+if ($x['has_value']) {
+    // PHPStan は、$x['value'] が int であることを認識できる
+    echo $x['value'];
+}
+`);
+  >
+
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+  +frame{Object shape}<
+    +code-block-php(`/** @var object{has_value: false} $none */
+$none = (object)[
+    'has_value' => false,
+];
+/** @var object{has_value: true, value: int} $some */
+$some = (object)[
+    'has_value' => true,
+    'value' => 42,
+];`);
+  >
+
+  +frame{Object shape}<
+    +code-block-php(`/** @return (object{has_value: false}
+             |object{has_value: true, value: int}) */
+function f(): stdClass { /* 略 */; }
+
+$x = f();
+if ($x->has_value) {
+    // 型が絞りこまれない！
+    echo $x->value;
+}
+`);
+  >
+
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+  +frame{Type assertion}<
+    +code-block-php(`/** @phpstan-assert-if-true int $a */
+/** @phpstan-assert-if-false !int $a */
+function check_is_int(mixed $a): bool {
+    return is_int($a);
+}
+
+$a = hogehoge();
+if (check_is_int($a)) {
+    PHPStan\dumpType($a);
+    // => int
+}
+`);
+  >
+
+  +frame{Type assertion}<
+    +code-block-php(`abstract class OptionalInt {
+    /**
+     * @phpstan-assert-if-true OptionalIntSome $this
+     * @phpstan-assert-if-false OptionalIntNone $this
+     */
+    public function hasValue(): bool {
+        return $this instanceof OptionalIntSome;
+    }
+}
+class OptionalIntNone extends OptionalInt {}
+class OptionalIntSome extends OptionalInt {
+    public function __construct(public int $value) {}
+}
+`);
+  >
+
+  +frame{Type assertion}<
+    +code-block-php(`$x = f();
+if ($x->hasValue()) {
+    echo $x->value;
+}
+`);
+  >
+
+  +frame{Type assertion}<
+    +code-block-php(`abstract class OptionalInt {
+    /**
+     * @phpstan-assert-if-true OptionalIntSome $this
+     * @phpstan-assert-if-false OptionalIntNone $this
+     */
+    public function hasValue(): bool {
+        return $this instanceof OptionalIntSome;
+    }
+}
+class OptionalIntNone extends OptionalInt {}
+class OptionalIntSome extends OptionalInt {
+    public function __construct(public int $value) {}
+}
+`);
+  >
+
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+  +frame{ここまでのまとめ}<
+    +fig-center(vconcat [
+      gap 75pt;
+      big-textbox{Array ではうまく動く};
+      gap 20pt;
+      big-textbox{Object では動かない / 課題アリ};
+      gap 20pt;
+      big-textbox{Object でも型を絞り込みたい};
+    ]);
+  >
+
+  +frame{PHPStan 魔改造}<
+    +code-block-php(`if ($x['has_value']) {
+    // $x['has_value'] の型が true に確定したことで、
+    // $x に HasOffsetValueType('has_value', true) の型が付く
+    echo $x['value'];
+}
+`);
+  >
+
+  +frame{PHPStan 魔改造}<
+    +code-block-php(`if ($x['has_value']) {
+    // $x['has_value'] の型が true に確定したことで、
+    // $x に HasOffsetValueType('has_value', true) の型が付く
+    echo $x['value'];
+}
+`);
+    +p{}
+    +code-block-php(`// (array{has_value: false}
+//  |array{has_value: true, value: int})
+// と
+// HasOffsetValueType('has_value', true)
+// とを合成する
+`);
+  >
+
+  +frame{PHPStan 魔改造}<
+    +fig-center(vconcat [
+      gap 40pt;
+      big-textbox?:(24pt){HasPropertyValueType};
+      gap 20pt;
+      big-textbox?:(24pt){HasPropertyValueType と object shape の合成};
+      gap 20pt;
+      big-textbox?:(24pt){内から外への型の伝播};
     ]);
   >
 
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
   +frame{まとめ}<
-    +p{TODO}
+    +fig-center(vconcat [
+      gap 75pt;
+      big-textbox?:(24pt){PHPStan と array shape を使った ADT もどき};
+      gap 20pt;
+      big-textbox?:(24pt){Object の型の絞り込みは未実装};
+      gap 20pt;
+      big-textbox?:(24pt){現在鋭意実装中};
+    ]);
   >
 
 >
