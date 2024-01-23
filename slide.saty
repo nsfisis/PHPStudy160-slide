@@ -93,14 +93,12 @@ enum OptionalInt {
   >
 
   +frame{実現したいもの}<
-    +code-block-php(`/** @return TODO */
-function f(): TODO {
-    return /* Some(int) か None を返す */;
-}
+    +code-block-php(`// OptionalInt を返す関数
+function f() { /* 略 */ }
 
 $x = f();
-if (/* $x が Some かどうか判定する */) {
-    echo /* $x が内部に持っている int の値を「型安全に」取り出す */;
+if (/* $x が値を持っているかどうか判定する */) {
+    echo /* $x が内部に持っている int の値を「安全に」取り出す */;
 }
 `);
   >
@@ -120,6 +118,7 @@ if (/* $x が Some かどうか判定する */) {
 
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+  +section{|Array shape 編|}<
   +frame{Array shape}<
     +code-block-php(`$none = [
     'has_value' => false,
@@ -160,9 +159,11 @@ if ($x['has_value']) {
 }
 `);
   >
+  >
 
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+  +section{|Object shape 編|}<
   +frame{Object shape}<
     +code-block-php(`/** @var object{has_value: false} $none */
 $none = (object)[
@@ -187,9 +188,11 @@ if ($x->has_value) {
 }
 `);
   >
+  >
 
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+  +section{|Type assertion 編|}<
   +frame{Type assertion}<
     +code-block-php(`/** @phpstan-assert-if-true int $a */
 /** @phpstan-assert-if-false !int $a */
@@ -246,24 +249,29 @@ class OptionalIntSome extends OptionalInt {
 }
 `);
   >
+  >
 
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
   +frame{ここまでのまとめ}<
     +fig-center(vconcat [
-      gap 75pt;
-      big-textbox{Array ではうまく動く};
+      gap 40pt;
+      big-textbox{Array shape ではうまく動く};
       gap 20pt;
-      big-textbox{Object では動かない / 課題アリ};
+      big-textbox{Object shape では動かない};
       gap 20pt;
-      big-textbox{Object でも型を絞り込みたい};
+      big-textbox{Type assertion では動くが課題アリ};
+      gap 40pt;
+      big-textbox{Object shape でも型を絞り込みたい！};
     ]);
   >
 
+  +section{|PHPStan 魔改造編|}<
   +frame{PHPStan 魔改造}<
     +code-block-php(`if ($x['has_value']) {
-    // $x['has_value'] の型が true に確定したことで、
-    // $x に HasOffsetValueType('has_value', true) の型が付く
+    // $x['has_value'] の型が truthy に確定したことで、
+    // $x に HasOffsetValueType('has_value', truthy)
+    // という型が付く
     echo $x['value'];
 }
 `);
@@ -271,8 +279,9 @@ class OptionalIntSome extends OptionalInt {
 
   +frame{PHPStan 魔改造}<
     +code-block-php(`if ($x['has_value']) {
-    // $x['has_value'] の型が true に確定したことで、
-    // $x に HasOffsetValueType('has_value', true) の型が付く
+    // $x['has_value'] の型が truthy に確定したことで、
+    // $x に HasOffsetValueType('has_value', truthy)
+    // という型が付く
     echo $x['value'];
 }
 `);
@@ -280,20 +289,29 @@ class OptionalIntSome extends OptionalInt {
     +code-block-php(`// (array{has_value: false}
 //  |array{has_value: true, value: int})
 // と
-// HasOffsetValueType('has_value', true)
+// HasOffsetValueType('has_value', truthy)
 // とを合成する
-`);
+
+`#);
   >
 
   +frame{PHPStan 魔改造}<
     +fig-center(vconcat [
-      gap 40pt;
-      big-textbox?:(24pt){HasPropertyValueType};
+      gap 75pt;
+      big-textbox?:(24pt){HasOffsetValueType を付ける};
       gap 20pt;
-      big-textbox?:(24pt){HasPropertyValueType と object shape の合成};
-      gap 20pt;
-      big-textbox?:(24pt){内から外への型の伝播};
+      big-textbox?:(24pt){HasOffsetValueType と array shape を合成する};
     ]);
+  >
+
+  +frame{PHPStan 魔改造}<
+    +fig-center(vconcat [
+      gap 75pt;
+      big-textbox?:(24pt){HasPropertyValueType を付ける};
+      gap 20pt;
+      big-textbox?:(24pt){HasPropertyValueType と object shape を合成する};
+    ]);
+  >
   >
 
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -303,9 +321,20 @@ class OptionalIntSome extends OptionalInt {
       gap 75pt;
       big-textbox?:(24pt){PHPStan と array shape を使った ADT もどき};
       gap 20pt;
-      big-textbox?:(24pt){Object の型の絞り込みは未実装};
+      big-textbox?:(24pt){Object shape での型の絞り込みは未実装};
       gap 20pt;
       big-textbox?:(24pt){現在鋭意実装中};
+    ]);
+  >
+
+  +frame{宣伝}<
+    +fig-center(vconcat [
+      gap 75pt;
+      big-textbox{3/7-9: PHPerKaigi 2024};
+      gap 20pt;
+      big-textbox{3/15-16: Ya8 2024};
+      gap 20pt;
+      big-textbox{4/13: PHPカンファレンス小田原 2024};
     ]);
   >
 
